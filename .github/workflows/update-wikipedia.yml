@@ -1,0 +1,54 @@
+name: Periodic Wikipedia Wordlist Update
+
+on:
+  schedule:
+    # Run at 00:00 on day 1 of every month
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    # Allows manual trigger via GitHub Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-wordlist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Wikipedia wordlist update script
+        run: |
+          python3 scripts/update_wikipedia_wordlist.py
+
+      - name: Check for changes
+        id: git_status
+        run: |
+          if git diff --quiet wikipedia-wordlist.txt; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in wikipedia-wordlist.txt."
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in wikipedia-wordlist.txt."
+          fi
+
+      - name: Create Pull Request with updates
+        if: steps.git_status.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Update wikipedia-wordlist.txt from latest Wikimedia dump"
+          title: "Periodic update: wikipedia-wordlist.txt"
+          body: |
+            Automated monthly update from latest Wikimedia database dump (`guwiki-latest-pages-articles-multistream.xml.bz2`).
+            
+            - Generated via `scripts/update_wikipedia_wordlist.py`.
+            - Filtered typos, noise, and citation tags (frequency >= 3).
+            - Collation sorted in standard Gujarati alphabetical order.
+          branch: auto-update-wikipedia-wordlist
+          delete-branch: true
