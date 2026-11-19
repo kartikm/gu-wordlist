@@ -11,6 +11,8 @@ wikipedia-wordlist.txt: Words dumped from Gujarati wikipedia <http://dumps.wikim
 
 wikipedia-frequency.tsv: How often each word occurs in Gujarati Wikipedia (word, TAB, count; words seen at least twice).
 
+rejected-words.txt: Words reviewed as misspelled or wrongly encoded; never included in gu_IN.dic.
+
 Updating Wikipedia Wordlist
 ===========================
 
@@ -70,6 +72,12 @@ The script also:
   anusvara, repha, ષ/શ, ણ/ન) and no variant is already in the wordlist, so
   common misspellings like સક્રીય, બ્રિટીશ, નિમણૂંક stay flagged.
   Use `--no-wiki` to build from gu-wordlist.txt alone;
+- never adds a Wikipedia word with an impossible sign order (two vowel signs
+  in a row, a sign after a virama, …), which mostly comes from text converted
+  from old non-Unicode fonts, and warns about such entries in gu-wordlist.txt;
+- skips every word listed in `rejected-words.txt` (words reviewed as wrong),
+  both from gu-wordlist.txt and from Wikipedia. Add a word there to keep it
+  out of the dictionary permanently;
 - checks that every correct word of gu-wordlist.txt is still accepted.
 
 `scripts/hspell.py` is a small Python reader for these affix rules that the

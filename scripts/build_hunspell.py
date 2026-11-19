@@ -93,6 +93,18 @@ ATTEST_MIN_FREQ = 2      # an inflected form counts as evidence from this freque
 KEEP_JUNK_FREQ = 5       # a suspicious base form survives if Wikipedia really uses it
 VALID = re.compile('[અ-ઔક-હળ][઀-૿]*[^્ઃ]')
 
+# Sign sequences that cannot occur in correctly encoded Gujarati: two vowel
+# signs in a row (કાર્યાેત્તર), a sign after a virama (ટે્રઇન, વચ્ચ્ે), a vowel
+# sign after anusvara (આવતંું), a virama after a vowel sign, a doubled anusvara.
+# Mostly left over from converting old non-Unicode fonts.
+_M, _V, _A = '\u0ABE-\u0ACC\u0AE2\u0AE3', '\u0ACD', '\u0A81-\u0A83'
+MALFORMED = re.compile(f'[{_M}][{_M}]|{_V}[{_M}{_A}{_V}]|[{_A}][{_M}{_V}]|[{_M}]{_V}|\u0A82\u0A82')
+MALFORMED_OK = {'રૂા'}   # standard abbreviation of રૂપિયા
+
+
+def malformed(w):
+    return w not in MALFORMED_OK and bool(MALFORMED.search(w))
+
 
 STRICT = [('ઈ', 'ઇ'), ('ઊ', 'ઉ'), ('ી', 'િ'), ('ૂ', 'ુ'), ('ં', ''), ('ઁ', ''),
           ('્રૃ', 'ૃ'), ('ૌ', 'ો'), ('ૈ', 'ે')]
@@ -173,11 +185,16 @@ def expand(aff, out_dir, entries):
 
 def main(base_path, freq_path, out_dir):
     from hspell import load
+    rej_path = os.path.join(os.path.dirname(os.path.abspath(base_path)), 'rejected-words.txt')
+    rejected = set()
+    if os.path.exists(rej_path):
+        rejected = {l.strip() for l in open(rej_path, encoding='utf-8')
+                    if l.strip() and not l.startswith('#')}
     freq = {}
     for l in open(freq_path, encoding='utf-8'):
         w, _, n = l.rstrip('\n').partition('\t')
         freq[w] = int(n or 0)
-    raw = [l.strip() for l in open(base_path, encoding='utf-8') if l.strip()]
+    raw = [l.strip() for l in open(base_path, encoding='utf-8') if l.strip() and l.strip() not in rejected]
     raw_set = set(raw)
     junk = {w: r for w in raw if (r := junk_reason(w, raw_set, freq))}
     base = [w for w in raw if w not in junk]
@@ -221,7 +238,8 @@ def main(base_path, freq_path, out_dir):
     if WITH_WIKI:
         acc_norm = {norm(w) for w in accepted}
         cand = [w for w, n in freq.items() if n >= WIKI_MIN_FREQ and w not in accepted
-                and VALID.fullmatch(w) and len(w) <= 25 and not junk_reason(w, accepted, freq)]
+                and VALID.fullmatch(w) and len(w) <= 25 and not malformed(w) and w not in rejected
+                and not junk_reason(w, accepted, freq)]
         cand = [w for w in cand if norm(w) not in acc_norm]
         # most frequent spelling per loose key, counting accepted words too
         top = {}
@@ -275,6 +293,9 @@ def main(base_path, freq_path, out_dir):
     print(f'entries {len(order)}; N {cnt("N")} O {cnt("O")} U {cnt("U")} V {cnt("V")} W {cnt("W")} K {cnt("K")}')
     print(f'junk removed from gu-wordlist: {len(junk)} {by}; still accepted via rules: {len(still_junk)}')
     print(f'lost from base: {len(lost)}')
+    bad_enc = [w for w in base if malformed(w)]
+    if bad_enc:
+        print(f'warning: {len(bad_enc)} gu-wordlist.txt entries look wrongly encoded, e.g. {" ".join(bad_enc[:10])}')
     return final
 
 
