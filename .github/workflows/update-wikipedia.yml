@@ -27,28 +27,44 @@ jobs:
         run: |
           python3 scripts/update_wikipedia_wordlist.py
 
+      - name: Count word frequencies
+        run: |
+          python3 scripts/count_wiki_frequencies.py \
+            downloads/guwiki-latest-pages-articles-multistream.xml.bz2 > wikipedia-frequency.tsv
+
+      - name: Rebuild Hunspell dictionary (gu_IN.aff, gu_IN.dic)
+        run: |
+          python3 scripts/build_hunspell.py gu-wordlist.txt wikipedia-frequency.tsv .
+
       - name: Check for changes
         id: git_status
         run: |
-          if git diff --quiet wikipedia-wordlist.txt; then
+          if git diff --quiet -- wikipedia-wordlist.txt wikipedia-frequency.tsv gu_IN.aff gu_IN.dic; then
             echo "changed=false" >> $GITHUB_OUTPUT
-            echo "No changes detected in wikipedia-wordlist.txt."
+            echo "No changes detected."
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Changes detected in wikipedia-wordlist.txt."
+            git diff --stat -- wikipedia-wordlist.txt wikipedia-frequency.tsv gu_IN.aff gu_IN.dic
           fi
 
       - name: Create Pull Request with updates
         if: steps.git_status.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "Update wikipedia-wordlist.txt from latest Wikimedia dump"
-          title: "Periodic update: wikipedia-wordlist.txt"
+          commit-message: "Update Wikipedia wordlist, frequencies and Hunspell dictionary from latest Wikimedia dump"
+          title: "Periodic update: Wikipedia wordlist and Hunspell dictionary"
+          add-paths: |
+            wikipedia-wordlist.txt
+            wikipedia-frequency.tsv
+            gu_IN.aff
+            gu_IN.dic
           body: |
             Automated monthly update from latest Wikimedia database dump (`guwiki-latest-pages-articles-multistream.xml.bz2`).
             
-            - Generated via `scripts/update_wikipedia_wordlist.py`.
+            - `wikipedia-wordlist.txt` generated via `scripts/update_wikipedia_wordlist.py`.
             - Filtered typos, noise, and citation tags (frequency >= 3).
+            - `wikipedia-frequency.tsv` generated via `scripts/count_wiki_frequencies.py`.
+            - `gu_IN.aff` / `gu_IN.dic` rebuilt via `scripts/build_hunspell.py`.
             - Collation sorted in standard Gujarati alphabetical order.
           branch: auto-update-wikipedia-wordlist
           delete-branch: true
